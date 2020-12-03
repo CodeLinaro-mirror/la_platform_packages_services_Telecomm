@@ -756,6 +756,7 @@ public class BluetoothPhoneServiceImpl {
         Call activeCall = mCallsManager.getActiveCall();
         Call ringingCall = mCallsManager.getRingingCall();
         Call heldCall = mCallsManager.getHeldCall();
+        Call dialingCall = mCallsManager.getOutgoingCall();
 
         if((activeCall != null) && (activeCall.getTargetPhoneAccount() != null) &&
           (activeCall.getTargetPhoneAccount().getComponentName() != null) )
@@ -795,6 +796,19 @@ public class BluetoothPhoneServiceImpl {
                 }
               }
            }
+
+         if((dialingCall != null) && (dialingCall.getTargetPhoneAccount() != null) &&
+          (dialingCall.getTargetPhoneAccount().getComponentName() != null))
+          {
+              String cname = dialingCall.getTargetPhoneAccount().getComponentName().getClassName();
+              if( cname != null ) {
+                  Log.i(TAG, " held class: %s " + cname);
+                  if( cname.equals(hfpclass)){
+                       Log.i(TAG,"If hfpclient, return from here");
+                       return;
+                  }
+              }
+          }
 
         int bluetoothCallState = getBluetoothCallStateForUpdate();
 

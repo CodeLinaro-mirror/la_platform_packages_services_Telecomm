@@ -99,6 +99,7 @@ public class BluetoothPhoneServiceImpl {
     private boolean mIsDisconnectedTonePlaying = false;
     private boolean isAnswercallInProgress = false;
 
+    private String hfpclass = "com.android.bluetooth.hfpclient.connserv.HfpClientConnectionService";
     /**
      * Binder implementation of IBluetoothHeadsetPhone. Implements the command interface that the
      * bluetooth headset code uses to control call.
@@ -837,6 +838,59 @@ public class BluetoothPhoneServiceImpl {
         /* Treat ANSWERED state call also as ringing call as BT is not aware of this state */
         Call ringingCall = mCallsManager.getRingingOrSimulatedRingingCall();
         Call heldCall = mCallsManager.getHeldCall();
+        Call dialingCall = mCallsManager.getDialingCall();
+
+        if((dialingCall != null) && (dialingCall.getTargetPhoneAccount() != null) &&
+          (dialingCall.getTargetPhoneAccount().getComponentName() != null) )
+         {
+              String cname = dialingCall.getTargetPhoneAccount().getComponentName().getClassName();
+              if( cname != null ) {
+                Log.i(TAG, " dialing class: " + cname);
+                if( cname.equals(hfpclass)){
+                     Log.i(TAG,"If hfpclient, return from here");
+                     return;
+                }
+              }
+           }
+
+        if((activeCall != null) && (activeCall.getTargetPhoneAccount() != null) &&
+          (activeCall.getTargetPhoneAccount().getComponentName() != null) )
+         {
+              String cname = activeCall.getTargetPhoneAccount().getComponentName().getClassName();
+              if( cname != null ) {
+                Log.i(TAG, " active class: " + cname);
+                if( cname.equals(hfpclass)){
+                     Log.i(TAG,"If hfpclient, return from here");
+                     return;
+                }
+              }
+           }
+
+        if( (ringingCall != null) && (ringingCall.getTargetPhoneAccount() != null) &&
+            (ringingCall.getTargetPhoneAccount().getComponentName() != null) )
+          {
+              String cname = ringingCall.getTargetPhoneAccount().getComponentName().getClassName();
+              if( cname != null ) {
+                Log.i(TAG, " ringing class: " + cname);
+                if( cname.equals(hfpclass)){
+                     Log.i(TAG,"If hfpclient, return from here");
+                     return;
+                }
+              }
+           }
+
+        if((heldCall != null) && (heldCall.getTargetPhoneAccount() != null) &&
+          (heldCall.getTargetPhoneAccount().getComponentName() != null))
+          {
+              String cname = heldCall.getTargetPhoneAccount().getComponentName().getClassName();
+              if( cname != null ) {
+                Log.i(TAG, " held class: %s " + cname);
+                if( cname.equals(hfpclass)){
+                     Log.i(TAG,"If hfpclient, return from here");
+                     return;
+                }
+              }
+           }
 
         int bluetoothCallState = getBluetoothCallStateForUpdate();
 

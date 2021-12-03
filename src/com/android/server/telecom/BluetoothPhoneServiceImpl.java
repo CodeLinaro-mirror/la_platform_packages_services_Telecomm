@@ -383,7 +383,7 @@ public class BluetoothPhoneServiceImpl {
             if (call.isExternalCall()) {
                 return;
             }
-            updateHeadsetWithCallState(false /* force */);
+            updateHeadsetWithCallState(call, false /* force */);
         }
 
         @Override
@@ -392,7 +392,7 @@ public class BluetoothPhoneServiceImpl {
                 return;
             }
             mClccIndexMap.remove(call);
-            updateHeadsetWithCallState(false /* force */);
+            updateHeadsetWithCallState(call, false /* force */);
         }
 
         /**
@@ -455,7 +455,7 @@ public class BluetoothPhoneServiceImpl {
                     && newState == CallState.PULLING) {
                 return;
             }
-            updateHeadsetWithCallState(false /* force */);
+            updateHeadsetWithCallState(call, false /* force */);
         }
 
         @Override
@@ -489,7 +489,7 @@ public class BluetoothPhoneServiceImpl {
                 Log.d(this, "Ignoring onIsConferenceChanged from parent with only one child call");
                 return;
             }
-            updateHeadsetWithCallState(false /* force */);
+            updateHeadsetWithCallState(call, false /* force */);
         }
 
         @Override
@@ -824,7 +824,22 @@ public class BluetoothPhoneServiceImpl {
         mClccIndexMap.put(call, i);
         return i;
     }
+    private void updateHeadsetWithCallState(Call call, boolean force) {
+        Log.i(TAG, "updateHeadsetWithCallState with call parameter");
 
+        if((call != null) && (call.getTargetPhoneAccount() != null) &&
+          (call.getTargetPhoneAccount().getComponentName() != null) ) {
+            String cname = call.getTargetPhoneAccount().getComponentName().getClassName();
+            if(cname != null) {
+                Log.i(TAG, "updateHeadsetWithCallState with call parameter " + cname);
+                if(cname.equals(hfpclass)){
+                     Log.i(TAG,"hfpclient call, do not update call status to headset");
+                     return;
+                }
+            }
+        }
+        updateHeadsetWithCallState(force);
+    }
     /**
      * Sends an update of the current call state to the current Headset.
      *

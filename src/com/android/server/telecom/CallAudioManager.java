@@ -114,6 +114,10 @@ public class CallAudioManager extends CallsManagerListenerBase {
             // No audio management for calls in a conference, or external calls.
             return;
         }
+        if (oldState == newState) {
+            // State did not change, so no need to do anything.
+            return;
+        }
         Log.d(LOG_TAG, "Call state changed for TC@%s: %s -> %s", call.getId(),
                 CallState.toString(oldState), CallState.toString(newState));
 
@@ -133,17 +137,29 @@ public class CallAudioManager extends CallsManagerListenerBase {
             playToneAfterCallConnected(call);
         }
         //reset CRS mode once call state changed.
-        if (mIsInCrsMode && (newState != CallState.RINGING)) {
+        if (mIsInCrsMode && (newState == CallState.ACTIVE
+                    || newState == CallState.DISCONNECTED)) {
+            Log.i(this, "CRS call is finished");
             mIsInCrsMode = false;
-            if ((mOriginalCallType == VideoProfile.STATE_AUDIO_ONLY)
-                    && !mCallsManager.isWiredHandsetInOrBtAvailble()) {
-                setAudioRoute(CallAudioState.ROUTE_EARPIECE, null);
+            mRinger.restoreSystemSpeakerInCallVolume();
+            //If original call type is voice call or VT accpeting as voice call,
+            //then need to set audio path to earpiece.
+            if (newState == CallState.ACTIVE) {
+                if (!mCallsManager.isWiredHandsetInOrBtAvailble()
+                        && (call.getVideoState() != VideoProfile.STATE_BIDIRECTIONAL)) {
+                    setAudioRoute(CallAudioState.ROUTE_EARPIECE, null);
+                } else if (mCallsManager.isBtAvailble()) {
+                    setAudioRoute(CallAudioState.ROUTE_BLUETOOTH, null);
+                } else if (mCallsManager.isWiredHandsetIn()) {
+                    setAudioRoute(CallAudioState.ROUTE_WIRED_HEADSET, null);
+                }
             }
             mOriginalCallType = Call.CALL_TYPE_UNKNOWN;
             if (mIsSilenced && mRingingCalls.size() == 0) {
                 mIsSilenced = false;
             }
         }
+
         onCallLeavingState(call, oldState);
         onCallEnteringState(call, newState);
     }
@@ -523,6 +539,10 @@ public class CallAudioManager extends CallsManagerListenerBase {
         }
     }
 
+    public Context getContext() {
+        return mCallsManager.getContext();
+    }
+
     @VisibleForTesting
     public void startCallWaiting(String reason) {
         synchronized (mCallsManager.getLock()) {
@@ -596,9 +616,9 @@ public class CallAudioManager extends CallsManagerListenerBase {
         mCallAudioModeStateMachine.dump(pw);
         pw.decreaseIndent();
 
-        pw.println("CallAudioRouteStateMachine pending messages:");
+        pw.println("CallAudioRouteStateMachine:");
         pw.increaseIndent();
-        mCallAudioRouteStateMachine.dumpPendingMessages(pw);
+        mCallAudioRouteStateMachine.dump(pw);
         pw.decreaseIndent();
 
         pw.println("BluetoothDeviceManager:");
@@ -661,8 +681,7 @@ public class CallAudioManager extends CallsManagerListenerBase {
             case CallState.SIMULATED_RINGING:
                 mIsInCrsMode = call.isCrsCall();
                 mOriginalCallType = call.getOriginalCallType();
-                if(mIsInCrsMode &&
-                        !mCallsManager.isWiredHandsetInOrBtAvailble()) {
+                if(mIsInCrsMode) {
                     Log.i(LOG_TAG, "set Audio Route to SPEAKER");
                     setAudioRoute(CallAudioState.ROUTE_SPEAKER, null);
                 }
@@ -979,7 +998,14 @@ public class CallAudioManager extends CallsManagerListenerBase {
         synchronized (mCallsManager.getLock()) {
             if (mRingingCalls.size() == 0 ||
                     (mRingingCalls.size() == 1 && call == mRingingCalls.iterator().next())) {
-                mRinger.stopRinging();
+                //CRS call need to be restored inCall volume while call accepting or rejecting.
+                //To avoid CRS audio becomes loud/low when restore volume, mute CRS first.
+                if (mIsInCrsMode) {
+                    mRinger.muteCrs(true);
+                    mRinger.stopPlayingCrs();
+                } else {
+                    mRinger.stopRinging();
+                }
                 mRinger.stopCallWaiting();
             }
         }

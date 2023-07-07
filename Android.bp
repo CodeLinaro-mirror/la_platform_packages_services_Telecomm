@@ -23,6 +23,7 @@ android_app {
     name: "Telecom",
     libs: [
       "ims-ext-common",
+      "services",
     ],
     uses_libs: [
       "ims-ext-common",
@@ -33,6 +34,7 @@ android_app {
     ],
     static_libs: [
         "androidx.annotation_annotation",
+        "androidx.core_core",
     ],
     resource_dirs: ["res"],
     proto: {

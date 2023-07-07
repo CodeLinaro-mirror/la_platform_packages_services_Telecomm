@@ -90,7 +90,6 @@ public class ConnectionServiceWrapper extends ServiceBinder implements
         ConnectionServiceFocusManager.ConnectionServiceFocus {
 
     private static final String TELECOM_ABBREVIATION = "cast";
-
     private CompletableFuture<Pair<Integer, Location>> mQueryLocationFuture = null;
     private @Nullable CancellationSignal mOngoingQueryLocationRequest = null;
     private final ExecutorService mQueryLocationExecutor = Executors.newSingleThreadExecutor();
@@ -921,6 +920,9 @@ public class ConnectionServiceWrapper extends ServiceBinder implements
                         callingPhoneAccountHandle.getComponentName().getPackageName());
             }
 
+            boolean hasCrossUserAccess = mContext.checkCallingOrSelfPermission(
+                    android.Manifest.permission.INTERACT_ACROSS_USERS)
+                    == PackageManager.PERMISSION_GRANTED;
             long token = Binder.clearCallingIdentity();
             try {
                 synchronized (mLock) {
@@ -932,7 +934,7 @@ public class ConnectionServiceWrapper extends ServiceBinder implements
                     // an emergency call.
                             mPhoneAccountRegistrar.getCallCapablePhoneAccounts(null /*uriScheme*/,
                             false /*includeDisabledAccounts*/, userHandle, 0 /*capabilities*/,
-                            0 /*excludedCapabilities*/, false);
+                            0 /*excludedCapabilities*/, hasCrossUserAccess);
                     PhoneAccountHandle phoneAccountHandle = null;
                     for (PhoneAccountHandle accountHandle : accountHandles) {
                         if(accountHandle.equals(callingPhoneAccountHandle)) {
@@ -1433,7 +1435,11 @@ public class ConnectionServiceWrapper extends ServiceBinder implements
                 callback.send(0,
                         getQueryLocationErrorResult(QueryLocationException.ERROR_UNSPECIFIED));
             }
+            //make sure we don't pass mock locations diretly, always reset() mock locations
             if (result.second != null) {
+                if(result.second.isMock()) {
+                    result.second.reset();
+                }
                 callback.send(1, getQueryLocationResult(result.second));
             } else {
                 callback.send(0, getQueryLocationErrorResult(result.first));

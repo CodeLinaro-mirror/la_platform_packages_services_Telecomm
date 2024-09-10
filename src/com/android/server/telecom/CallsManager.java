@@ -909,8 +909,15 @@ public class CallsManager extends Call.ListenerBase
 
         if (incomingCall.getState() != CallState.DISCONNECTED &&
                 incomingCall.getState() != CallState.DISCONNECTING) {
-            setCallState(incomingCall, CallState.RINGING,
-                    result.shouldAllowCall ? "successful incoming call" : "blocking call");
+            if (incomingCall.getState() != CallState.ACTIVE) {
+                setCallState(incomingCall, CallState.RINGING,
+                        result.shouldAllowCall ? "successful incoming call" : "blocking call");
+            } else {
+                // Sometimes call can become active before the call filtering is complete.
+                // For eg: hfp incoming call which was quickly answered at the companion device.
+                // In such cases, do not set the call to ringing state after it is active.
+                Log.w(this, "onCallFilteringCompleted: call already active.");
+            }
         } else {
             Log.i(this, "onCallFilteringCompleted: call already disconnected.");
             return;

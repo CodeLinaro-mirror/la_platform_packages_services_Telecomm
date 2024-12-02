@@ -263,8 +263,6 @@ public class BluetoothRouteManager extends StateMachine {
                         }
                         break;
                     case CONNECT_BT:
-                        Log.i(LOG_TAG, "CONNECT_BT: address =" + address +
-                                " switchingBtDevices = " + switchingBtDevices);
                         if (!switchingBtDevices) {
                             // Ignore repeated connection attempts to the same device
                             break;
@@ -281,7 +279,6 @@ public class BluetoothRouteManager extends StateMachine {
                         }
                         break;
                     case DISCONNECT_BT:
-                        Log.i(LOG_TAG, "DISCONNECT_BT");
                         mDeviceManager.disconnectAudio();
                         break;
                     case RETRY_BT_CONNECTION:
@@ -383,8 +380,6 @@ public class BluetoothRouteManager extends StateMachine {
                         }
                         break;
                     case CONNECT_BT:
-                        Log.i(LOG_TAG, "CONNECT_BT: address =" + address +
-                                " switchingBtDevices = " + switchingBtDevices);
                         if (!switchingBtDevices) {
                             // Ignore connection to already connected device but still notify
                             // CallAudioRouteStateMachine since this might be a switch from other
@@ -404,7 +399,6 @@ public class BluetoothRouteManager extends StateMachine {
                         }
                         break;
                     case DISCONNECT_BT:
-                        Log.i(LOG_TAG, "DISCONNECT_BT");
                         mDeviceManager.disconnectAudio();
                         break;
                     case RETRY_BT_CONNECTION:
@@ -623,7 +617,6 @@ public class BluetoothRouteManager extends StateMachine {
     }
 
     public void onActiveDeviceChanged(BluetoothDevice device, int deviceType) {
-        Log.i(this, "onActiveDeviceChanged: device = " + device + " type = " + deviceType);
         boolean wasActiveDevicePresent = hasBtActiveDevice();
         if (deviceType == BluetoothDeviceManager.DEVICE_TYPE_LE_AUDIO) {
             mLeAudioActiveDeviceCache = device;
@@ -685,8 +678,6 @@ public class BluetoothRouteManager extends StateMachine {
      * connection was successful.
      */
     private String connectBtAudio(String address, int retryCount, boolean switchingBtDevices) {
-        Log.i(this, "connectBtAudio: address = " + address + " retryCount = " + retryCount
-                + " switchingBtDevices = " + switchingBtDevices);
         Collection<BluetoothDevice> deviceList = mDeviceManager.getConnectedDevices();
         Optional<BluetoothDevice> matchingDevice = deviceList.stream()
                 .filter(d -> Objects.equals(d.getAddress(), address))
@@ -795,14 +786,14 @@ public class BluetoothRouteManager extends StateMachine {
             for (BluetoothDevice device : bluetoothAdapter.getActiveDevices(
                         BluetoothProfile.HEADSET)) {
                 hfpAudioOnDevice = device;
-                if (hfpAudioOnDevice != null && bluetoothHeadset.getAudioState(hfpAudioOnDevice)
-                        == BluetoothHeadset.STATE_AUDIO_DISCONNECTED) {
-                    hfpAudioOnDevice = null;
-                    break;
-                } else if (hfpAudioOnDevice != null) {
-                    activeDevices++;
-                    break;
-                }
+                break;
+            }
+
+            if (hfpAudioOnDevice != null && bluetoothHeadset.getAudioState(hfpAudioOnDevice)
+                    == BluetoothHeadset.STATE_AUDIO_DISCONNECTED) {
+                hfpAudioOnDevice = null;
+            } else {
+                activeDevices++;
             }
         }
 
@@ -841,15 +832,13 @@ public class BluetoothRouteManager extends StateMachine {
         }
 
         if (leAudioActiveDevice != null) {
-            Log.i(this, "getBluetoothAudioConnectedDevice: " + leAudioActiveDevice);
             return leAudioActiveDevice;
         }
 
         if (hearingAidActiveDevice != null) {
-            Log.i(this, "getBluetoothAudioConnectedDevice: " + hearingAidActiveDevice);
             return hearingAidActiveDevice;
         }
-        Log.i(this, "getBluetoothAudioConnectedDevice: " + hfpAudioOnDevice);
+
         return hfpAudioOnDevice;
     }
 
@@ -870,7 +859,6 @@ public class BluetoothRouteManager extends StateMachine {
     }
 
     private boolean addDevice(String address) {
-        Log.i(this, "addDevice : " + address);
         if (mAudioConnectingStates.containsKey(address)) {
             Log.i(this, "Attempting to add device %s twice.", address);
             return false;
@@ -885,7 +873,6 @@ public class BluetoothRouteManager extends StateMachine {
     }
 
     private boolean removeDevice(String address) {
-        Log.i(this, "removeDevice: " + address);
         if (!mAudioConnectingStates.containsKey(address)) {
             Log.i(this, "Attempting to remove already-removed device %s", address);
             return false;

@@ -181,7 +181,7 @@ public class PhoneAccountRegistrar {
     private final TelecomSystem.SyncRoot mLock;
     private State mState;
     private UserHandle mCurrentUserHandle;
-    private final Set<String> mTestPhoneAccountPackageNameFilters;
+    private String mTestPhoneAccountPackageNameFilter;
     private interface PhoneAccountRegistrarWriteLock {}
     private final PhoneAccountRegistrarWriteLock mWriteLock =
             new PhoneAccountRegistrarWriteLock() {};
@@ -215,7 +215,6 @@ public class PhoneAccountRegistrar {
         mAppLabelProxy = appLabelProxy;
         mCurrentUserHandle = Process.myUserHandle();
         mTelecomFeatureFlags = telecomFeatureFlags;
-        mTestPhoneAccountPackageNameFilters = new HashSet<>();
 
         if (telephonyFeatureFlags != null) {
             mTelephonyFeatureFlags = telephonyFeatureFlags;
@@ -608,33 +607,23 @@ public class PhoneAccountRegistrar {
      * {@link PhoneAccount}s with the same package name.
      */
     public void setTestPhoneAccountPackageNameFilter(String packageNameFilter) {
-        mTestPhoneAccountPackageNameFilters.clear();
-        if (packageNameFilter == null) {
-            return;
-        }
-        String [] pkgNamesFilter = packageNameFilter.split(",");
-        mTestPhoneAccountPackageNameFilters.addAll(Arrays.asList(pkgNamesFilter));
-        StringBuilder pkgNames = new StringBuilder();
-        for (int i = 0; i < pkgNamesFilter.length; i++) {
-            pkgNames.append(pkgNamesFilter[i])
-                    .append(i != pkgNamesFilter.length - 1 ? ", " : ".");
-        }
-        Log.i(this, "filter set for PhoneAccounts, packageNames: %s", pkgNames.toString());
+        mTestPhoneAccountPackageNameFilter = packageNameFilter;
+        Log.i(this, "filter set for PhoneAccounts, packageName=" + packageNameFilter);
     }
 
     /**
      * Filter the given {@link List<PhoneAccount>} and keep only {@link PhoneAccount}s that have the
-     * #mTestPhoneAccountPackageNameFilters.
+     * #mTestPhoneAccountPackageNameFilter.
      * @param accounts List of {@link PhoneAccount}s to filter.
      * @return new list of filtered {@link PhoneAccount}s.
      */
     public List<PhoneAccount> filterRestrictedPhoneAccounts(List<PhoneAccount> accounts) {
-        if (mTestPhoneAccountPackageNameFilters.isEmpty()) {
+        if (TextUtils.isEmpty(mTestPhoneAccountPackageNameFilter)) {
             return new ArrayList<>(accounts);
         }
-        // Remove all PhoneAccounts that do not have the same package name (prefix) as the filter.
-        return accounts.stream().filter(account -> mTestPhoneAccountPackageNameFilters
-                .contains(account.getAccountHandle().getComponentName().getPackageName()))
+        // Remove all PhoneAccounts that do not have the same package name as the filter.
+        return accounts.stream().filter(account -> mTestPhoneAccountPackageNameFilter.equals(
+                account.getAccountHandle().getComponentName().getPackageName()))
                 .collect(Collectors.toList());
     }
 
@@ -1988,7 +1977,7 @@ public class PhoneAccountRegistrar {
             }
             pw.decreaseIndent();
             pw.increaseIndent();
-            pw.println("test emergency PhoneAccount filter: " + mTestPhoneAccountPackageNameFilters);
+            pw.println("test emergency PhoneAccount filter: " + mTestPhoneAccountPackageNameFilter);
             pw.decreaseIndent();
         }
     }

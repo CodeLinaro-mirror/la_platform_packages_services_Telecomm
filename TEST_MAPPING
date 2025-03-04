@@ -47,9 +47,11 @@
           "exclude-annotation": "androidx.test.filters.FlakyTest"
         }
       ]
-    },
+    }
+  ],
+  "presubmit-large": [
     {
-      "name": "CtsTelecomCujTestCases",
+      "name": "CtsTelecomTestCases",
       "options": [
         {
           "exclude-annotation": "androidx.test.filters.FlakyTest"
@@ -57,9 +59,9 @@
       ]
     }
   ],
-  "presubmit-large": [
+  "postsubmit": [
     {
-      "name": "CtsTelecomTestCases",
+      "name": "CtsTelecomCujTestCases",
       "options": [
         {
           "exclude-annotation": "androidx.test.filters.FlakyTest"

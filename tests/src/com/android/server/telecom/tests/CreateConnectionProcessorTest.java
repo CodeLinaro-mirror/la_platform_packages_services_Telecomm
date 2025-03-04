@@ -51,7 +51,6 @@ import com.android.internal.telephony.flags.Flags;
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallIdMapper;
 import com.android.server.telecom.CallState;
-import com.android.server.telecom.CallsManager;
 import com.android.server.telecom.ConnectionServiceFocusManager;
 import com.android.server.telecom.ConnectionServiceRepository;
 import com.android.server.telecom.ConnectionServiceWrapper;
@@ -98,8 +97,6 @@ public class CreateConnectionProcessorTest extends TelecomTestCase {
     @Mock
     PhoneAccountRegistrar mMockAccountRegistrar;
     @Mock
-    CallsManager mCallsManager;
-    @Mock
     CreateConnectionResponse mMockCreateConnectionResponse;
     @Mock
     Call mMockCall;
@@ -139,7 +136,7 @@ public class CreateConnectionProcessorTest extends TelecomTestCase {
 
         mTestCreateConnectionProcessor = new CreateConnectionProcessor(mMockCall,
                 mMockConnectionServiceRepository, mMockCreateConnectionResponse,
-                mMockAccountRegistrar, mCallsManager, mContext, mFeatureFlags, mTimeoutsAdapter);
+                mMockAccountRegistrar, mContext, mFeatureFlags, mTimeoutsAdapter);
 
         mAccountToSub = new HashMap<>();
         phoneAccounts = new ArrayList<>();

@@ -2651,7 +2651,7 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
             return;
         }
         mCreateConnectionProcessor = new CreateConnectionProcessor(this, mRepository, this,
-                phoneAccountRegistrar, mContext, mFlags, new Timeouts.Adapter());
+                phoneAccountRegistrar, mCallsManager, mContext, mFlags, new Timeouts.Adapter());
         mCreateConnectionProcessor.process();
     }
 
@@ -3403,6 +3403,13 @@ public class Call implements CreateConnectionResponse, EventManager.Loggable,
                 Log.addEvent(this, LogUtils.Events.VERSTAT_CHANGED, callerNumberVerificationStatus);
                 setCallerNumberVerificationStatus(callerNumberVerificationStatus);
             }
+        }
+
+        if (extras.containsKey(Connection.EXTRA_ANSWERING_DROPS_FG_CALL)) {
+            CharSequence appName =
+                    extras.getCharSequence(Connection.EXTRA_ANSWERING_DROPS_FG_CALL_APP_NAME);
+            Log.addEvent(this, LogUtils.Events.ANSWER_DROPS_FG,
+                    "Answering will drop FG call from %s", appName);
         }
 
         // The remote connection service API can track the phone account which was originally

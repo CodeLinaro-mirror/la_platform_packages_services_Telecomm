@@ -2356,9 +2356,10 @@ public class ConnectionServiceWrapper extends ServiceBinder implements
             }
         }
 
-        // Bail early if the caller isn't the sim connection mgr.
-        if (!isCallerConnectionManager) {
-            Log.d(this, "queryRemoteConnectionServices: none; not sim call mgr.");
+        Log.i(this, "queryRemoteConnectionServices, simServices = %s", simServices);
+        // Bail early if the caller isn't the sim connection mgr or no sim connection service
+        // other than caller available.
+        if (!isCallerConnectionManager || simServices.isEmpty()) {
             noRemoteServices(callback);
             return;
         }

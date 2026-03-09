@@ -219,7 +219,7 @@ public class ComponentContextFixture implements TestFixture<Context> {
                 ServiceConnection connection) {
             IInterface service = mServiceByServiceConnection.remove(connection);
             if (service == null) {
-                throw new RuntimeException("ServiceConnection not found: " + connection);
+                throw new IllegalArgumentException("ServiceConnection not found: " + connection);
             }
             connection.onServiceDisconnected(mComponentNameByService.get(service));
         }
@@ -316,6 +316,8 @@ public class ComponentContextFixture implements TestFixture<Context> {
                 return Context.TELECOM_SERVICE;
             } else if (svcClass == BlockedNumbersManager.class) {
                 return Context.BLOCKED_NUMBERS_SERVICE;
+            } else if (svcClass == LocationManager.class) {
+                return Context.LOCATION_SERVICE;
             } else if (svcClass == AppOpsManager.class) {
                 return Context.APP_OPS_SERVICE;
             } else if (svcClass == StatsManager.class) {

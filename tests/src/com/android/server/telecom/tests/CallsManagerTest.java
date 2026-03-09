@@ -150,6 +150,13 @@ import com.android.server.telecom.callfiltering.BlockedNumbersAdapter;
 import com.android.server.telecom.callfiltering.CallFilteringResult;
 import com.android.server.telecom.flags.FeatureFlags;
 import com.android.server.telecom.callfiltering.IncomingCallFilterGraph;
+import com.android.server.telecom.metrics.ApiStats;
+import com.android.server.telecom.metrics.AudioRouteStats;
+import com.android.server.telecom.metrics.CallEndpointStats;
+import com.android.server.telecom.metrics.CallSequencingStats;
+import com.android.server.telecom.metrics.CallStats;
+import com.android.server.telecom.metrics.ErrorStats;
+import com.android.server.telecom.metrics.EventStats;
 import com.android.server.telecom.metrics.TelecomMetricsController;
 import com.android.server.telecom.ui.AudioProcessingNotification;
 import com.android.server.telecom.ui.CallStreamingNotification;
@@ -182,6 +189,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import com.android.server.telecom.LogUtils;
+import com.android.server.telecom.TelecomBroadcastIntentProcessor;
 import android.content.res.Resources;
 
 @RunWith(JUnit4.class)
@@ -345,6 +354,13 @@ public class CallsManagerTest extends TelecomTestCase {
     @Mock private UserManager mMockCurrentUserManager;
     @Mock private IConnectionService mIConnectionService;
     @Mock private TelecomMetricsController mMockTelecomMetricsController;
+    @Mock private ApiStats mApiStats;
+    @Mock private AudioRouteStats mAudioRouteStats;
+    @Mock private CallStats mCallStats;
+    @Mock private ErrorStats mErrorStats;
+    @Mock private EventStats mEventStats;
+    @Mock private CallSequencingStats mCallSequencingStats;
+    @Mock private CallEndpointStats mCallEndpointStats;
     @Mock private Ringer.VibratorAdapter mMockVibratorAdapter;
     @Mock private LowBatteryAlertListener mLowBatteryAlertListener;
     @Mock private Resources mMockResources;
@@ -395,6 +411,15 @@ public class CallsManagerTest extends TelecomTestCase {
                 .thenReturn(STATE_TIMEOUT);
         when(mClockProxy.elapsedRealtime()).thenReturn(0L);
         when(mMockVibratorAdapter.hasVibrator()).thenReturn(true);
+        when(mMockTelecomMetricsController.getApiStats()).thenReturn(mApiStats);
+        when(mMockTelecomMetricsController.getAudioRouteStats()).thenReturn(mAudioRouteStats);
+        when(mMockTelecomMetricsController.getCallStats()).thenReturn(mCallStats);
+        when(mMockTelecomMetricsController.getErrorStats()).thenReturn(mErrorStats);
+        when(mMockTelecomMetricsController.getEventStats()).thenReturn(mEventStats);
+        when(mMockTelecomMetricsController.getCallSequencingStats()).thenReturn(
+                mCallSequencingStats);
+        when(mMockTelecomMetricsController.getCallEndpointStats()).thenReturn(
+                mCallEndpointStats);
         mCallsManager = new CallsManager(
                 mComponentContextFixture.getTestDouble().getApplicationContext(),
                 mLock,
@@ -1672,7 +1697,6 @@ public class CallsManagerTest extends TelecomTestCase {
     @Test
     public void testDndFilterAppliesOfCallsWhenPhoneAccountRequestsSkipped() {
         // GIVEN an incoming call which is from a PhoneAccount that requested to skip filtering.
-        when(mFeatureFlags.skipFilterPhoneAccountPerformDndFilter()).thenReturn(true);
         Call incomingCall = addSpyCall(SIM_1_HANDLE, CallState.NEW);
         Bundle extras = new Bundle();
         extras.putBoolean(PhoneAccount.EXTRA_SKIP_CALL_FILTERING, true);
@@ -1694,34 +1718,6 @@ public class CallsManagerTest extends TelecomTestCase {
 
         // THEN the incoming call is still applying Dnd filter.
         verify(incomingCall).setIsUsingCallFiltering(eq(true));
-    }
-
-    @SmallTest
-    @Test
-    public void testNoFilterAppliesOfCallsWhenFlagNotEnabled() {
-        // Flag is not enabled.
-        when(mFeatureFlags.skipFilterPhoneAccountPerformDndFilter()).thenReturn(false);
-        Call incomingCall = addSpyCall(SIM_1_HANDLE, CallState.NEW);
-        Bundle extras = new Bundle();
-        extras.putBoolean(PhoneAccount.EXTRA_SKIP_CALL_FILTERING, true);
-        PhoneAccount skipRequestedAccount = new PhoneAccount.Builder(SIM_2_HANDLE, "Skipper")
-                .setCapabilities(PhoneAccount.CAPABILITY_SIM_SUBSCRIPTION
-                        | PhoneAccount.CAPABILITY_CALL_PROVIDER)
-                .setExtras(extras)
-                .setIsEnabled(true)
-                .build();
-        when(mPhoneAccountRegistrar.getPhoneAccountUnchecked(SIM_1_HANDLE))
-                .thenReturn(skipRequestedAccount);
-        doReturn(false).when(incomingCall).can(Connection.CAPABILITY_HOLD);
-        doReturn(false).when(incomingCall).can(Connection.CAPABILITY_SUPPORT_HOLD);
-        doReturn(false).when(incomingCall).isSelfManaged();
-        doReturn(true).when(incomingCall).setState(anyInt(), any());
-
-        // WHEN the incoming call is successfully added.
-        mCallsManager.onSuccessfulIncomingCall(incomingCall);
-
-        // THEN the incoming call is not applying filter.
-        verify(incomingCall).setIsUsingCallFiltering(eq(false));
     }
 
     @SmallTest
@@ -4416,6 +4412,78 @@ public class CallsManagerTest extends TelecomTestCase {
             sleep(50);
         }
         assertEquals(description, condition.expected(), condition.actual());
+    }
+
+    @SmallTest
+    @Test
+    public void testProcessRedirectedOutgoingCallAfterUserInteraction_PlaceRedirected() {
+        Call call = createSpyCall(SIM_1_HANDLE, CallState.NEW);
+        mCallsManager.setPendingRedirectedOutgoingCall(call);
+        android.telecom.Logging.Runnable runnable =
+                mock(android.telecom.Logging.Runnable.class);
+        java.lang.Runnable javaRunnable = mock(java.lang.Runnable.class);
+        when(runnable.prepare()).thenReturn(javaRunnable);
+        mCallsManager.getPendingRedirectedOutgoingCallInfo().put(call.getId(), runnable);
+
+        mCallsManager.processRedirectedOutgoingCallAfterUserInteraction(call.getId(),
+                TelecomBroadcastIntentProcessor.ACTION_PLACE_REDIRECTED_CALL);
+
+        verify(runnable).prepare();
+        assertNull(mCallsManager.getPendingRedirectedOutgoingCallInfo().get(call.getId()));
+    }
+
+    @SmallTest
+    @Test
+    public void testProcessRedirectedOutgoingCallAfterUserInteraction_Cancel() {
+        Call call = createSpyCall(SIM_1_HANDLE, CallState.NEW);
+        mCallsManager.setPendingRedirectedOutgoingCall(call);
+
+        mCallsManager.processRedirectedOutgoingCallAfterUserInteraction(call.getId(),
+                TelecomBroadcastIntentProcessor.ACTION_CANCEL_REDIRECTED_CALL);
+
+        verify(call).disconnect(anyString());
+    }
+
+    @SmallTest
+    @Test
+    public void testStopCallStreaming() {
+        Call call = createSpyCall(SIM_1_HANDLE, CallState.ACTIVE);
+        when(call.isStreaming()).thenReturn(true);
+        TransactionalServiceWrapper wrapper = mock(TransactionalServiceWrapper.class);
+        when(call.getTransactionServiceWrapper()).thenReturn(wrapper);
+
+        mCallsManager.stopCallStreaming(call);
+
+        verify(wrapper).stopCallStreaming(call);
+    }
+
+    @SmallTest
+    @Test
+    public void testConfirmPendingCall() {
+        Call call = createSpyCall(SIM_1_HANDLE, CallState.NEW);
+        mCallsManager.setPendingCall(call);
+        CompletableFuture<Call> future = new CompletableFuture<>();
+        mCallsManager.setPendingCallConfirm(future);
+
+        mCallsManager.confirmPendingCall(call.getId());
+
+        assertTrue(future.isDone());
+        assertEquals(call, future.join());
+    }
+
+    @SmallTest
+    @Test
+    public void testCancelPendingCall() {
+        Call call = createSpyCall(SIM_1_HANDLE, CallState.NEW);
+        mCallsManager.setPendingCall(call);
+        CompletableFuture<Call> future = new CompletableFuture<>();
+        mCallsManager.setPendingCallConfirm(future);
+
+        mCallsManager.cancelPendingCall(call.getId());
+
+        assertTrue(future.isDone());
+        assertNull(future.join());
+        verify(call).setState(eq(CallState.DISCONNECTED), anyString());
     }
 
     private boolean waitForFutureResult(CompletableFuture<Boolean> future, boolean defaultValue) {

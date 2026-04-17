@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -36,6 +37,7 @@ import android.telecom.CallAudioState;
 import android.telecom.VideoProfile;
 import android.text.TextUtils;
 
+import com.android.dx.mockito.inline.extended.ExtendedMockito;
 import com.android.server.telecom.Call;
 import com.android.server.telecom.CallAudioManager;
 import com.android.server.telecom.CallState;
@@ -50,6 +52,8 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.MockitoSession;
+import org.mockito.quality.Strictness;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -73,11 +77,19 @@ public class CrsAudioControllerTest extends TelecomTestCase {
 
     private CrsAudioController mCrsAudioController;
     private CompletableFuture<Boolean> mTimeoutFuture;
+    private MockitoSession mMockitoSession;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        mMockitoSession = ExtendedMockito.mockitoSession()
+                .strictness(Strictness.LENIENT)
+                .mockStatic(com.android.internal.telecom.flags.Flags.class)
+                .startMocking();
+        ExtendedMockito.when(com.android.internal.telecom.flags.Flags.callAudioRouteRf())
+                .thenReturn(false);
+
         MockitoAnnotations.initMocks(this);
         TelecomResourceId.setTelecomContext(mContext);
         when(mContext.getResources()).thenReturn(mResources);
@@ -104,6 +116,9 @@ public class CrsAudioControllerTest extends TelecomTestCase {
     @Override
     @After
     public void tearDown() throws Exception {
+        if (mMockitoSession != null) {
+            mMockitoSession.finishMocking();
+        }
         TelecomResourceId.setTelecomContext(null);
         super.tearDown();
     }
@@ -422,5 +437,40 @@ public class CrsAudioControllerTest extends TelecomTestCase {
         mCrsAudioController.setCrsAudioRoute(mCallAudioManager);
 
         verify(mCallAudioManager, never()).setAudioRoute(anyInt(), any());
+    }
+
+    @Test
+    public void testSetCrsModeParams_idempotentWhenDisabled() {
+        // Verifies that setParameters is not called when disabling CRS mode if it's
+        // already disabled. This tests the stateful behavior of the method.
+        mockStringResource("config_crs_mode_on_param", "on_param");
+        mockStringResource("config_crs_mode_off_param", "off_param");
+
+        // When CRS mode is not yet set (mIsCrsModeSet=false), calling disable should be a no-op.
+        mCrsAudioController.setCrsModeParams(false);
+        verify(mAudioManager, never()).setParameters(anyString());
+
+        // Enable the mode, which should call setParameters.
+        mCrsAudioController.setCrsModeParams(true);
+        verify(mAudioManager).setParameters("on_param");
+
+        // Disable the mode, which should also call setParameters.
+        mCrsAudioController.setCrsModeParams(false);
+        verify(mAudioManager).setParameters("off_param");
+
+        // Calling disable again should be a no-op since the mode is already off.
+        mCrsAudioController.setCrsModeParams(false);
+        verify(mAudioManager, times(1)).setParameters("off_param");
+    }
+
+    @Test
+    public void testSetAudioManagerInCallMode_FlagEnabled() {
+        ExtendedMockito.when(com.android.internal.telecom.flags.Flags.callAudioRouteRf())
+                .thenReturn(true);
+        mCrsAudioController.setCallAudioManager(mCallAudioManager);
+        mCrsAudioController.setAudioManagerInCallMode();
+
+        verify(mCallAudioManager).setAudioMode(AudioManager.MODE_IN_CALL);
+        verify(mAudioManager, never()).setMode(anyInt());
     }
 }

@@ -24,12 +24,14 @@ import static com.android.server.telecom.TelecomStatsLog.CALL_STATS__ACCOUNT_TYP
 import static com.android.server.telecom.TelecomStatsLog.CALL_STATS__CALL_DIRECTION__DIR_INCOMING;
 import static com.android.server.telecom.TelecomStatsLog.CALL_STATS__RAT_ON_END__NETWORK_TYPE_SATELLITE;
 import static com.android.server.telecom.TelecomStatsLog.CALL_STATS__RAT_ON_END__NETWORK_TYPE_WIFI;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
@@ -768,7 +770,28 @@ public class TelecomPulledAtomTest extends TelecomTestCase {
         assertEquals(callStats.mPulledAtoms.callStats.length, 1);
         verifyMessageForCallStats(callStats.mPulledAtoms.callStats[0], VALUE_CALL_DIRECTION,
                 false, false, true, VALUE_CALL_ACCOUNT_TYPE, VALUE_UID, 2, VALUE_CALL_DURATION,
-                VALUE_CALL_RAT);
+                VALUE_CALL_RAT, new int[]{VALUE_CALL_DURATION, VALUE_CALL_DURATION});
+    }
+
+    @Test
+    public void testCallStatsLogDurationLimit() throws Exception {
+        CallStats callStats = spy(new CallStats(mSpyContext, mLooper, false));
+
+        for (int i = 0; i < 20; i++) {
+            callStats.log(VALUE_CALL_DIRECTION, false, false, true, VALUE_CALL_ACCOUNT_TYPE,
+                    VALUE_UID, 0, 0, false, VALUE_CALL_RAT, i);
+            waitForHandlerAction(callStats, TEST_TIMEOUT);
+        }
+
+        assertEquals(callStats.mPulledAtoms.callStats.length, 1);
+        assertEquals(callStats.mPulledAtoms.callStats[0].getCount(), 20);
+        assertEquals(callStats.mPulledAtoms.callStats[0].repeatedIntDurations.length, 10);
+        int[] expectedDurations = new int[10];
+        for (int i = 0; i < 10; i++) {
+            expectedDurations[i] = i;
+        }
+        assertArrayEquals(callStats.mPulledAtoms.callStats[0].repeatedIntDurations,
+                expectedDurations);
     }
 
     @Test
@@ -1252,6 +1275,68 @@ public class TelecomPulledAtomTest extends TelecomTestCase {
         assertEquals(event1.hashCode(), event2.hashCode());
     }
 
+    /**
+     * Verifies that loading a corrupt or malformed file does not cause a crash.
+     * Instead, it should fall back to creating a new, empty atom instance. This tests
+     * the IOException catch block in {@link TelecomPulledAtom#loadAtomsFromFile()}.
+     */
+    @Test
+    public void testLoadAtomsFromFile_corruptFile() throws Exception {
+        // Write invalid data to the file to simulate corruption, which should cause a
+        // parsing IOException.
+        try (FileOutputStream stream = new FileOutputStream(mTempFile)) {
+            stream.write(new byte[] {0x01, 0x02, 0x03});
+        }
+
+        // Instantiate a subclass. The constructor calls loadAtomsFromFile().
+        ApiStats apiStats = new ApiStats(mSpyContext, mLooper, false);
+
+        // Verify that it falls back to creating a new, empty PulledAtoms object
+        // instead of crashing.
+        assertNotNull(apiStats.mPulledAtoms);
+        assertEquals(0, apiStats.mPulledAtoms.telecomApiStats.length);
+    }
+
+    /**
+     * Verifies that multiple rapid calls to save with a delay result in only one
+     * scheduled file write. This tests the coalescing logic implemented with
+     * {@code if (!hasMessages(EVENT_SAVE))}.
+     */
+    @Test
+    public void testSave_coalescesMultipleDelayedRequests() {
+        // Use a spy to monitor calls to sendMessageDelayed.
+        ApiStats apiStats = spy(new ApiStats(mSpyContext, mLooper, false));
+
+        // Call save with a delay multiple times in quick succession.
+        apiStats.save(DELAY_FOR_PERSISTENT_MILLIS);
+        apiStats.save(DELAY_FOR_PERSISTENT_MILLIS);
+
+        // Verify that a delayed message was scheduled only once, because the second call
+        // should see that a message is already pending.
+        verify(apiStats, times(1))
+          .sendMessageDelayed(any(), eq((long) DELAY_FOR_PERSISTENT_MILLIS));
+    }
+
+    /**
+     * Verifies that calling save with a zero or negative delay triggers an immediate,
+     * synchronous file write, bypassing the handler's message queue.
+     */
+    @Test
+    public void testSave_immediateSaveWithZeroDelay() throws Exception {
+        // Use a spy to monitor calls.
+        ApiStats apiStats = spy(new ApiStats(mSpyContext, mLooper, false));
+
+        // Call save with zero delay to trigger an immediate, synchronous save.
+        apiStats.save(0);
+
+        // Verify that the save operation (writing to a file) was performed immediately.
+        // This is an indirect way of verifying the private onSave() method was called.
+        verify(mFileOutputStream).write(any(byte[].class));
+
+        // Verify that no delayed message was sent to the handler.
+        verify(apiStats, never()).sendMessageDelayed(any(), anyLong());
+    }
+
     private void createTestFileForApiStats(long timestamps) throws IOException {
         PulledAtomsClass.PulledAtoms atom = new PulledAtomsClass.PulledAtoms();
         atom.telecomApiStats =
@@ -1361,6 +1446,7 @@ public class TelecomPulledAtomTest extends TelecomTestCase {
             atom.callStats[i].setRatOnEnd(VALUE_CALL_RAT);
             atom.callStats[i].setCount(VALUE_CALL_COUNT);
             atom.callStats[i].setAverageDurationMs(VALUE_CALL_DURATION);
+            atom.callStats[i].repeatedIntDurations = new int[]{VALUE_CALL_DURATION};
         }
         atom.setCallStatsPullTimestampMillis(timestamps);
         FileOutputStream stream = new FileOutputStream(mTempFile);
@@ -1385,6 +1471,13 @@ public class TelecomPulledAtomTest extends TelecomTestCase {
     private void verifyMessageForCallStats(final PulledAtomsClass.CallStats msg,
             int direction, boolean external, boolean emergency, boolean multipleAudio,
             int accountType, int uid, int count, int duration, int rat) {
+        verifyMessageForCallStats(msg, direction, external, emergency, multipleAudio, accountType,
+                uid, count, duration, rat, new int[]{duration});
+    }
+
+    private void verifyMessageForCallStats(final PulledAtomsClass.CallStats msg,
+            int direction, boolean external, boolean emergency, boolean multipleAudio,
+            int accountType, int uid, int count, int duration, int rat, int[] durations) {
         assertEquals(msg.getCallDirection(), direction);
         assertEquals(msg.getExternalCall(), external);
         assertEquals(msg.getEmergencyCall(), emergency);
@@ -1394,6 +1487,7 @@ public class TelecomPulledAtomTest extends TelecomTestCase {
         assertEquals(msg.getCount(), count);
         assertEquals(msg.getAverageDurationMs(), duration);
         assertEquals(msg.getRatOnEnd(), rat);
+        assertArrayEquals(msg.repeatedIntDurations, durations);
     }
 
     private void createTestFileForErrorStats(long timestamps) throws IOException {

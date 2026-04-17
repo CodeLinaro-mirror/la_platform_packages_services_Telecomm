@@ -48,17 +48,21 @@ public class ConfirmCallDialogActivity extends Activity {
     private void showDialog(final String callId, CharSequence ongoingAppName) {
         Log.i(TAG, String.format("showDialog: confirming callId=%s, ongoing=%s", callId,
                 ongoingAppName));
-        CharSequence message = getString(R.string.alert_outgoing_call, ongoingAppName);
+        CharSequence message;
+        if (ongoingAppName == null) {
+            message = getString(R.string.alert_outgoing_call_null_app_name);
+        } else {
+            message = getString(R.string.alert_outgoing_call, ongoingAppName);
+        }
         final AlertDialog errorDialog = new AlertDialog.Builder(this)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         Intent proceedWithCall = new Intent(Constants.ACTION_PROCEED_WITH_CALL);
-                        proceedWithCall.setClassName(Constants.TELECOM_PACKAGE,
-                                Constants.TELECOM_BROADCAST_RECEIVER_CLASS);
+                        proceedWithCall.setPackage(Constants.TELECOM_PACKAGE);
                         proceedWithCall.putExtra(EXTRA_OUTGOING_CALL_ID, callId);
-                        sendBroadcast(proceedWithCall);
+                        sendBroadcast(proceedWithCall, Constants.TELECOM_UI_ACCESS_PERMISSION);
                         dialog.dismiss();
                         finish();
                     }
@@ -67,10 +71,9 @@ public class ConfirmCallDialogActivity extends Activity {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         Intent cancelCall = new Intent(Constants.ACTION_CANCEL_CALL);
-                        cancelCall.setClassName(Constants.TELECOM_PACKAGE,
-                                Constants.TELECOM_BROADCAST_RECEIVER_CLASS);
+                        cancelCall.setPackage(Constants.TELECOM_PACKAGE);
                         cancelCall.putExtra(EXTRA_OUTGOING_CALL_ID, callId);
-                        sendBroadcast(cancelCall);
+                        sendBroadcast(cancelCall, Constants.TELECOM_UI_ACCESS_PERMISSION);
                         dialog.dismiss();
                         finish();
                     }
@@ -79,10 +82,9 @@ public class ConfirmCallDialogActivity extends Activity {
                     @Override
                     public void onCancel(DialogInterface dialog) {
                         Intent cancelCall = new Intent(Constants.ACTION_CANCEL_CALL);
-                        cancelCall.setClassName(Constants.TELECOM_PACKAGE,
-                                Constants.TELECOM_BROADCAST_RECEIVER_CLASS);
+                        cancelCall.setPackage(Constants.TELECOM_PACKAGE);
                         cancelCall.putExtra(EXTRA_OUTGOING_CALL_ID, callId);
-                        sendBroadcast(cancelCall);
+                        sendBroadcast(cancelCall, Constants.TELECOM_UI_ACCESS_PERMISSION);
                         dialog.dismiss();
                         finish();
                     }

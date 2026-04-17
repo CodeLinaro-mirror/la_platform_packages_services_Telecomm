@@ -30,7 +30,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -43,12 +42,11 @@ import static org.mockito.Mockito.when;
 import android.annotation.Nullable;
 import android.app.AppOpsManager;
 import android.bluetooth.BluetoothManager;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.net.Uri;
@@ -75,7 +73,6 @@ import com.android.internal.telecom.IInCallAdapter;
 import com.android.server.telecom.AnomalyReporterAdapter;
 import com.android.server.telecom.AsyncRingtonePlayer;
 import com.android.server.telecom.AudioRoute;
-import com.android.server.telecom.CallAudioManager;
 import com.android.server.telecom.CallAudioModeStateMachine;
 import com.android.server.telecom.CallAudioRouteAdapter;
 import com.android.server.telecom.CallAudioRouteController;
@@ -104,7 +101,6 @@ import com.android.server.telecom.Timeouts;
 import com.android.server.telecom.WiredHeadsetManager;
 import com.android.server.telecom.bluetooth.BluetoothRouteManager;
 import com.android.server.telecom.callfiltering.BlockedNumbersAdapter;
-import com.android.server.telecom.callsequencing.voip.VoipCallMonitor;
 import com.android.server.telecom.components.UserCallIntentProcessor;
 import com.android.server.telecom.flags.FeatureFlags;
 import com.android.server.telecom.metrics.TelecomMetricsController;
@@ -112,19 +108,14 @@ import com.android.server.telecom.ui.IncomingCallNotifier;
 
 import com.google.common.base.Predicate;
 
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -413,7 +404,6 @@ public class TelecomSystemTest extends TelecomTestCase{
 
     @Override
     public void tearDown() throws Exception {
-        TelecomResourceId.setTelecomContext(null);
         if (mTelecomSystem != null && mTelecomSystem.getCallsManager() != null) {
             mTelecomSystem.getCallsManager().waitOnHandlers();
             LinkedList<HandlerThread> handlerThreads = mTelecomSystem.getCallsManager()
@@ -460,7 +450,7 @@ public class TelecomSystemTest extends TelecomTestCase{
             mConnectionServiceFixtureA.waitForHandlerToClear();
         }
 
-        if (mConnectionServiceFixtureA != null) {
+        if (mConnectionServiceFixtureB != null) {
             mConnectionServiceFixtureB.waitForHandlerToClear();
         }
 
@@ -469,6 +459,7 @@ public class TelecomSystemTest extends TelecomTestCase{
         Log.getSessionManager().cleanupStaleSessions(0);
 
         mTelecomSystem = null;
+        TelecomResourceId.setTelecomContext(null);
         super.tearDown();
     }
 
@@ -591,7 +582,9 @@ public class TelecomSystemTest extends TelecomTestCase{
                             ContactsAsyncHelper.ContentResolverAdapter adapter) {
                         return new ContactsAsyncHelper(adapter, mHandlerThread.getLooper());
                     }
-                }, SYSTEM_UI_PACKAGE,
+                },
+                SYSTEM_UI_PACKAGE,
+                TELECOM_UI_PACKAGE_NAME,
                 mAccessibilityManagerAdapter,
                 Runnable::run,
                 Runnable::run,
@@ -800,8 +793,9 @@ public class TelecomSystemTest extends TelecomTestCase{
 
         final UserHandle userHandle = initiatingUser;
         Context localAppContext = mComponentContextFixture.getTestDouble().getApplicationContext();
-        new UserCallIntentProcessor(localAppContext, userHandle).processIntent(
-                actionCallIntent, null, false, true /* hasCallAppOp*/, false /* isLocal */);
+        new UserCallIntentProcessor(localAppContext, userHandle, TELECOM_UI_PACKAGE_NAME)
+                .processIntent(actionCallIntent, null, false,
+                        true /* hasCallAppOp*/, false /* isLocal */);
         // Wait for handler to start CallerInfo lookup.
         waitForHandlerAction(new Handler(Looper.getMainLooper()), TEST_TIMEOUT);
         // Send the CallerInfo lookup reply.

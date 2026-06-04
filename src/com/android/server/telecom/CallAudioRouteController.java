@@ -261,8 +261,15 @@ public class CallAudioRouteController implements CallAudioRouteAdapter {
                 Log.i(this, "onCommunicationDeviceChanged: device (%s), audioType (%d)",
                         device, audioType);
                 if (audioType == TYPE_SPEAKER) {
-                    if (mCurrentRoute.getType() != TYPE_SPEAKER) {
-                        sendMessageWithSessionInfo(SPEAKER_ON);
+                    AudioDeviceAttributes preferredDevice = getPreferredDeviceForStrategy();
+                    if (preferredDevice != null) {
+                        @AudioRoute.AudioRouteType int preferredType =
+                                DEVICE_INFO_TYPE_TO_AUDIO_ROUTE_TYPE
+                                .get(preferredDevice.getType());
+                        if (preferredType == TYPE_SPEAKER &&
+                                mCurrentRoute.getType() != TYPE_SPEAKER) {
+                            sendMessageWithSessionInfo(SPEAKER_ON);
+                        }
                     }
                 } else {
                     sendMessageWithSessionInfo(SPEAKER_OFF);

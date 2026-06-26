@@ -133,6 +133,18 @@ public class CallRedirectionProcessor implements CallRedirectionCallback {
                             + mServiceType + " call redirection service");
                 }
             }
+            Log.i(this, "notifyTimeout: call redirection has timed out so "
+                    + "unbinding the connection");
+            if (mConnection != null) {
+                try {
+                    // We still need to call unbind even if the service disconnected.
+                    mContext.unbindService(mConnection);
+                } catch (IllegalArgumentException e) {
+                    Log.e(this, e, "Error unbinding the connection");
+                }
+                mConnection = null;
+            }
+            mService = null;
         }
 
         private class CallRedirectionServiceConnection implements ServiceConnection {

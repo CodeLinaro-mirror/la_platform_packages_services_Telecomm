@@ -261,8 +261,15 @@ public class CallAudioRouteController implements CallAudioRouteAdapter {
                 Log.i(this, "onCommunicationDeviceChanged: device (%s), audioType (%d)",
                         device, audioType);
                 if (audioType == TYPE_SPEAKER) {
-                    if (mCurrentRoute.getType() != TYPE_SPEAKER) {
-                        sendMessageWithSessionInfo(SPEAKER_ON);
+                    AudioDeviceAttributes preferredDevice = getPreferredDeviceForStrategy();
+                    if (preferredDevice != null) {
+                        @AudioRoute.AudioRouteType int preferredType =
+                                DEVICE_INFO_TYPE_TO_AUDIO_ROUTE_TYPE
+                                .get(preferredDevice.getType());
+                        if (preferredType == TYPE_SPEAKER &&
+                                mCurrentRoute.getType() != TYPE_SPEAKER) {
+                            sendMessageWithSessionInfo(SPEAKER_ON);
+                        }
                     }
                 } else {
                     sendMessageWithSessionInfo(SPEAKER_OFF);
@@ -782,7 +789,7 @@ public class CallAudioRouteController implements CallAudioRouteAdapter {
      * Message being handled: BT_AUDIO_CONNECTED
      */
     private void handleBtAudioActive(BluetoothDevice bluetoothDevice) {
-        if (mIsPending) {
+        if (mIsPending && bluetoothDevice != null) {
             Log.i(this, "handleBtAudioActive: is pending path");
             if (Objects.equals(mPendingAudioRoute.getDestRoute().getBluetoothAddress(),
                     bluetoothDevice.getAddress())) {
@@ -801,7 +808,7 @@ public class CallAudioRouteController implements CallAudioRouteAdapter {
      * Message being handled: BT_AUDIO_DISCONNECTED
      */
     private void handleBtAudioInactive(BluetoothDevice bluetoothDevice) {
-        if (mIsPending) {
+        if (mIsPending && bluetoothDevice != null) {
             Log.i(this, "handleBtAudioInactive: is pending path");
             if (Objects.equals(mPendingAudioRoute.getOrigRoute().getBluetoothAddress(),
                     bluetoothDevice.getAddress())) {

@@ -195,7 +195,8 @@ public class CallAudioManager extends CallsManagerListenerBase {
         //reset CRS mode once call state changed.
 // QTI_END: 2021-04-01: Telephony: IMS: Support Video Customized Ringing Signal(CRS)
 // QTI_BEGIN: 2023-04-03: Telephony: IMS: Support video CRS in RINGTONE
-        if (!mIsCrsSupportedFromAudioHal && (call == mForegroundCall) && mIsInCrsMode &&
+        if (!mIsCrsSupportedFromAudioHal && (mForegroundCall == null || call == mForegroundCall) &&
+                mIsInCrsMode &&
 // QTI_END: 2023-04-03: Telephony: IMS: Support video CRS in RINGTONE
                 (newState == CallState.ACTIVE || newState == CallState.DISCONNECTED)) {
 // QTI_BEGIN: 2022-04-12: Telephony: IMS: Fix CRS volume issues
